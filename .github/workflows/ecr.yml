@@ -1,0 +1,135 @@
+on:
+    workflow_dispatch:
+        inputs:
+            ECRNAME:
+                type: string
+                description: "input ecr name a"
+                required: true
+            ENVIRONMENT:
+                type: choice
+                description: "Environment name"
+                required: true 
+                options:
+                - devl   
+                - production           
+            ACTION:
+                description: "select action Plan|Apply|destroy"
+                required: true
+                type: choice
+                options:
+                    - DRYRUN
+                    - APPLY
+                    - DESTROY
+            ACCOUNT_ID:
+              description: add account Number
+              required: true
+              type: choice
+              options:
+                - 403220184397
+                - 404035456839
+
+permissions:
+    id-token: write
+    contents: read
+env:
+jobs:
+    terraform_plan:        
+        name: Terraform_Plan_DEV
+        runs-on: ubuntu-latest
+        env: 
+           environment: ${{ inputs.ENVIRONMENT }}
+        steps:
+            - name: Gitaction Checkout
+              uses: actions/checkout@v3
+
+            # get aws credentials
+            - name: Get AWS Credentials
+              id: aws-credntials
+              uses: aws-actions/configure-aws-credentials@v2
+              with:
+                role-to-assume: "arn:aws:iam::${{ inputs.ACCOUNT_ID }}:role/github-actions-role"
+                aws-region: us-east-1
+            - name: terraform dryrun
+              if: inputs.ACTION == DRYRUN
+              id: drytun
+              run: | 
+                terraform init -backend-config="bucket=${{env.BUCKET}}" -backend-config="key=ecr/${{ inputs.ENVIRONMENT}}/${{ inputs.ECRNAME }}.tfstate"
+                terraform plan -out=plan.tf -var "ecr_name=${{ inputs.ECRNAME }}" -var-file="${{ inputs.ENVIRONMENT}}/${{ inputs.ENVIRONMENT}}.tfvars"
+                terraform apply "plan.tf"     
+            - name: terraform apply
+              if: inputs.ACTION == APPLY
+              id: apply
+              run: | 
+                  terraform init -backend-config="bucket=${{env.BUCKET}}" -backend-config="key=ecr/${{ inputs.ENVIRONMENT}}/${{ inputs.ECRNAME }}.tfstate"
+                  terraform plan -out=plan.tf -var "ecr_name=${{ inputs.ECRNAME }}" -var-file="${{ inputs.ENVIRONMENT}}/${{ inputs.ENVIRONMENT}}.tfvars"
+                  terraform apply "plan.tf"
+            - name: terraform destroy
+              if: inputs.ACTION == DESTROY
+              id: destroy
+              run: | 
+                    terraform init -backend-config="bucket=${{env.BUCKET}}" -backend-config="key=ecr/${{ inputs.ENVIRONMENT}}/${{ inputs.ECRNAME }}.tfstate"
+                    terraform plan -out=plan.tf -var "ecr_name=${{ inputs.ECRNAME }}" -var-file="${{ inputs.ENVIRONMENT}}/${{ inputs.ENVIRONMENT}}.tfvars"
+                    terraform apply "plan.tf"
+    
+    
+    
+    # terraform_plan_PROD: 
+    #     if: inputs.ENVIRONMENT == 'PROD' 
+    #     name: Terraform_Plan_PROD
+    #     runs-on: ubuntu-latest
+          
+    #     env:
+    #         ROLE: $ {{ github.input.event.ROLE}}
+    #     steps:
+    #     - name: Gitaction Checkout
+    #       uses: actions/checkout@v3
+            
+    #   # get aws credentials
+    #     - name: Get AWS Credentials
+    #       id: aws-credntials
+    #       uses: aws-actions/configure-aws-credentials@v2
+    #       with:
+    #         role-to-assume: "arn:aws:iam::403220184397:role/github-actions-role"
+    #         aws-region: us-east-1
+    #     - name: terraform DRYRUN
+    #       if: inputs.ACTION == 'DRYRUN'
+    #       id: plan
+    #       continue-on-error: true
+    #       run: | 
+    #         terraform init -backend-config="bucket=${{env.PROD_BUCKET}}" -backend-config="key=ecr/${{ inputs.ENVIRONMENT}}/${{ inputs.ECRNAME }}.tfstate"
+    #         terraform plan -out=plan.tf -var "ecr_name=${{ inputs.ECRNAME }}" -var-file="${{ inputs.ENVIRONMENT}}/${{ inputs.ENVIRONMENT}}.tfvars"
+             
+
+    #     - name: terraform apply
+    #       if: inputs.ACTION == 'APPLY'
+    #       id: APPLY
+    #       continue-on-error: true
+    #       run: | 
+    #           terraform init -backend-config="bucket=${{env.PROD_BUCKET}}" -backend-config="key=ecr/${{ inputs.ENVIRONMENT}}/${{ inputs.ECRNAME }}.tfstate"
+    #           terraform plan -out=plan.tf -var "ecr_name=${{ inputs.ECRNAME }}" -var-file="${{ inputs.ENVIRONMENT}}/${{ inputs.ENVIRONMENT}}.tfvars"
+    #           terraform apply "plan.tf"  
+       
+    #     - name: terraform DESTROY
+    #       if: inputs.ACTION == 'DESTROY'
+    #       id: DESTROY
+    #       continue-on-error: true
+    #       run: | 
+    #               terraform init -backend-config="bucket=${{env.PROD_BUCKET}}" -backend-config="key=ecr/${{ inputs.ENVIRONMENT}}/${{ inputs.ECRNAME }}.tfstate"
+    #               terraform plan -out=plan.tf -var "ecr_name=${{ inputs.ECRNAME }}" -var-file="${{ inputs.ENVIRONMENT}}/${{ inputs.ENVIRONMENT}}.tfvars"
+    #               terraform destroy "plan.tf"     
+
+    #         #     export TF_VAR_name ${{ inputs.ECRNAME }}               
+    #         #     terraform init -backend-config="bucket=${{ inputs.tfstate_bucket_name }}" -backend-config="key=ecr-ecr_name: ${{ inputs.ECRNAME }}.tfstate"
+    #         #     terraform plan -out=plan.tf -var "name=${{ inputs.ECRNAME }}" -var-file=abc.tfvars
+    #         #     terraform apply "plan.tf"
+    #         # # - name: terraform validate
+    #         # #   id: validate
+    #         # #   run: terraform validate
+    #         # #   continue-on-error: true
+           
+    #         # # - name: terraform plan
+    #         # #   id: plan
+    #         # #   run: |
+    #         # #       cd rds/service/${{ github.event.inputs.ENVIRONMENT }}
+    #         # #       terraform plan -out=plan.tf
+    #         #   continue-on-error: true

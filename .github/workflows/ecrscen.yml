@@ -1,0 +1,53 @@
+on:
+    workflow_dispatch:
+        inputs:
+                   
+permissions:
+    id-token: write
+    contents: read
+env:
+     
+    DEV_BUCKET: ${{ secrets.DEV_BUCKET }}
+    TEST_BUCKET: ${{ secrets.test_bucket }}
+    PROD_BUCKET: ${{ secrets.PROD_BUCKET }}
+
+jobs:
+    ecr_scan_report:         
+        name: ecr_scan_report
+        runs-on: ubuntu-latest
+        
+        env:
+            ROLE: $ {{ github.input.event.ROLE}}
+        steps:
+            - name: Gitaction Checkout
+              uses: actions/checkout@v3
+
+            # get aws credentials
+            - name: Get AWS Credentials
+              id: aws-credntials
+              uses: aws-actions/configure-aws-credentials@v2
+              with:
+                role-to-assume: "arn:aws:iam::403220184397:role/github-actions-role"
+                aws-region: us-east-1
+            - name: Login to amazon ecr
+              id: ecr_login
+              uses: aws-actions/amazon-ecr-login@v1
+            # - name: create image and upload to ecr    
+            #   run: |
+            #     docker pull alpine:3.17
+            #     docker tag alpine:3.17 403220184397.dkr.ecr.us-east-1.amazonaws.com/workshop:latest
+            #     docker push 403220184397.dkr.ecr.us-east-1.amazonaws.com/workshop:latest
+            #     docker rmi 403220184397.dkr.ecr.us-east-1.amazonaws.com/workshop:latest
+                     
+            - name: scan ecr
+              run: |
+                aws ecr describe-image-scan-findings --repository-name workshop --image-id imageTag=latest --registry-id 403220184397 --region us-east-1 --output table > scan_report.json                
+            
+            - name: filter result
+              run: |  
+                python3 main.py >> scan_report_new.json
+             
+            - uses: actions/upload-artifact@v3
+              with:
+                  name: scan_report
+                  path: ./scan_report_new.json     
